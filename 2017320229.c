@@ -40,7 +40,6 @@ int main(){
 	struct hw_packet buf_struct;
 	struct hw_packet buf_struct_rcv;
 	char file_rev[12288];
-    int sum=0;
 	buf_struct.flag=FLAG_HELLO;
 	buf_struct.operation=OP_ECHO;
 	buf_struct.data_len=4;
@@ -156,32 +155,45 @@ int main(){
 					
 				}
 				else if(buf_struct_rcv.operation==OP_PUSH){
-					printf("operation type is PUSH and the first byte of data is [%u]~[%d]\n",buf_struct_rcv.seq_num, strlen(file_rev)+buf_struct_rcv.data_len-1);
+					//printf("operation type is PUSH and the first byte of data is [%u]",buf_struct_rcv.seq_num);
+					printf("received push instruction!!\n");
+					printf("received seq_num: %u\n", buf_struct_rcv.seq_num);
+					printf("received data_len: %u\n", buf_struct_rcv.data_len);
+					//printf("real file seq_num: %d\n", strlen(file_rev));
+					printf("saved bytes from index %u to %u\n",strlen(file_rev),strlen(file_rev)+buf_struct_rcv.data_len-1);
 					buf_struct.flag=FLAG_RESPONSE;
 					buf_struct.seq_num=0;
 					buf_struct.operation=OP_PUSH;
 					buf_struct.data_len=0;
-                    memcpy(&value, &buf_struct_rcv.seq_num, sizeof(unsigned int));   //start address of data segment
-                    memcpy(file_rev+value, buf_struct_rcv.data, buf_struct_rcv.data_len);
-                    sum+=buf_struct_rcv.data_len;
-                    if(send(s,&buf_struct,sizeof(buf_struct),0)<0){
+                    memmove(&value, &buf_struct_rcv.seq_num, sizeof(unsigned int));   //start address of data segment
+                    memmove(file_rev+value, buf_struct_rcv.data, sizeof(char)*buf_struct_rcv.data_len);
+                    //file_rev[strlen(file_rev)]='\0';
+					//strcat(file_rev, buf_struct_rcv.data);
+					if(send(s,&buf_struct,sizeof(buf_struct),0)<0){
 						perror("simplex-talk: send INCREMENT packet");
 						close(s);
 						exit(1);
 					}
-					printf("sent response msg with OP_PUSH to server\n\n");
+					file_rev[buf_struct_rcv.seq_num+buf_struct_rcv.data_len]='\0';
+					printf("saved byte stream (character representation) : %s\n", file_rev+value);
+					printf("current file size is : %d\n\n",strlen(file_rev));
 				}
                 else if(buf_struct_rcv.operation==OP_DIGEST){
+					printf("received digest instruction!!\n");
+					printf("********** calculated digest **********\n");
                     buf_struct.flag=FLAG_RESPONSE;
 					buf_struct.seq_num=0;
 					buf_struct.operation=OP_DIGEST;
                     SHA1(buf_struct.data, file_rev, strlen(file_rev));
+					//printf("%s", buf_struct.data);
+					printf("***************************************\n");
                     buf_struct.data_len=20;
                     if(send(s,&buf_struct,sizeof(buf_struct),0)<0){
 						perror("simplex-talk: send INCREMENT packet");
 						close(s);
 						exit(1);
 					}
+					printf("sent digest message to server");
                 }
 				/*error*/
 				else{
